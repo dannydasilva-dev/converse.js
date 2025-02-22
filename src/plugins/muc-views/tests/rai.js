@@ -1,7 +1,6 @@
 /*global mock, converse */
+const { Strophe, u, stx, sizzle } = converse.env;
 
-const { Strophe } = converse.env;
-const u = converse.env.utils;
 // See: https://xmpp.org/rfcs/rfc3921.html
 
 
@@ -22,12 +21,12 @@ describe("XEP-0437 Room Activity Indicators", function () {
         const view = _converse.chatboxviews.get(muc_jid);
         expect(view.model.get('hidden')).toBe(false);
 
-        const sent_IQs = _converse.connection.IQ_stanzas;
-        const iq_get = await u.waitUntil(() => sent_IQs.filter(iq => iq.querySelector(`iq query[xmlns="${Strophe.NS.MAM}"]`)).pop());
-        const first_msg_id = _converse.connection.getUniqueId();
-        const last_msg_id = _converse.connection.getUniqueId();
-        let message = u.toStanza(
-            `<message xmlns="jabber:client"
+        const sent_IQs = _converse.api.connection.get().IQ_stanzas;
+        const iq_get = await u.waitUntil(() => sent_IQs.filter(iq => sizzle(`query[xmlns="${Strophe.NS.MAM}"]`, iq).length).pop());
+        const first_msg_id = _converse.api.connection.get().getUniqueId();
+        const last_msg_id = _converse.api.connection.get().getUniqueId();
+        let message =
+            stx`<message xmlns="jabber:client"
                     to="romeo@montague.lit/orchard"
                     from="${muc_jid}">
                 <result xmlns="urn:xmpp:mam:2" queryid="${iq_get.querySelector('query').getAttribute('queryid')}" id="${first_msg_id}">
@@ -56,11 +55,13 @@ describe("XEP-0437 Room Activity Indicators", function () {
             </message>`);
         _converse.connection._dataRecv(mock.createRequest(message));
 
-        const result = u.toStanza(
-            `<iq type='result' id='${iq_get.getAttribute('id')}'>
-                <fin xmlns='urn:xmpp:mam:2'>
-                    <set xmlns='http://jabber.org/protocol/rsm'>
-                        <first index='0'>${first_msg_id}</first>
+        const result =
+            stx`<iq type="result"
+                    id="${iq_get.getAttribute("id")}"
+                    xmlns="jabber:client">
+                <fin xmlns="urn:xmpp:mam:2" complete="true">
+                    <set xmlns="http://jabber.org/protocol/rsm">
+                        <first index="0">${first_msg_id}</first>
                         <last>${last_msg_id}</last>
                         <count>2</count>
                     </set>

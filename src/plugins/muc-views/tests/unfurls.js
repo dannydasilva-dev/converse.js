@@ -1,6 +1,5 @@
 /*global mock, converse */
-
-const { Strophe, u } = converse.env;
+const { Strophe, u, stx, sizzle } = converse.env;
 
 describe("A Groupchat Message", function () {
 
@@ -417,10 +416,10 @@ describe("A Groupchat Message", function () {
         const message_form = view.querySelector('converse-muc-message-form');
         textarea.value = unfurl_url;
         const enter_event = {
-            'target': textarea,
-            'preventDefault': function preventDefault () {},
-            'stopPropagation': function stopPropagation () {},
-            'keyCode': 13 // Enter
+            target: textarea,
+            preventDefault: function preventDefault () {},
+            stopPropagation: function stopPropagation () {},
+            keyCode: 13 // Enter
         }
         message_form.onKeyDown(enter_event);
 
@@ -428,14 +427,14 @@ describe("A Groupchat Message", function () {
         expect(view.querySelector('.chat-msg__text').textContent)
             .toBe(unfurl_url);
 
-        let msg = _converse.connection.send.calls.all()[1].args[0];
-        expect(Strophe.serialize(msg))
-        .toBe(
-            `<message from="${_converse.jid}" id="${msg.getAttribute('id')}" to="${muc_jid}" type="groupchat" xmlns="jabber:client">`+
-                `<body>${unfurl_url}</body>`+
-                `<active xmlns="http://jabber.org/protocol/chatstates"/>`+
-                `<origin-id id="${msg.querySelector('origin-id')?.getAttribute('id')}" xmlns="urn:xmpp:sid:0"/>`+
-            `</message>`);
+        const sent_stanzas = _converse.api.connection.get().sent_stanzas;
+        let msg = await u.waitUntil(() => sent_stanzas.filter(s => s.matches('message')).pop());
+        expect(msg).toEqualStanza(stx`
+            <message from="${own_jid}" id="${msg.getAttribute('id')}" to="${muc_jid}" type="groupchat" xmlns="jabber:client">
+                <body>${unfurl_url}</body>
+                <active xmlns="http://jabber.org/protocol/chatstates"/>
+                <origin-id id="${msg.querySelector('origin-id')?.getAttribute('id')}" xmlns="urn:xmpp:sid:0"/>
+            </message>`);
 
         const el = await u.waitUntil(() => view.querySelector('.chat-msg__text'));
         expect(el.textContent).toBe(unfurl_url);

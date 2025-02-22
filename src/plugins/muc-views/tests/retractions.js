@@ -1,8 +1,5 @@
 /*global mock, converse */
-
-const { Strophe, $iq } = converse.env;
-const u = converse.env.utils;
-
+const { Strophe, u, stx, sizzle } = converse.env;
 
 async function sendAndThenRetractMessage (_converse, view) {
     view.model.sendMessage({'body': 'hello world'});
@@ -929,14 +926,14 @@ describe("Message Retractions", function () {
             await mock.openAndEnterChatRoom(_converse, muc_jid, 'romeo', features);
             const view = _converse.chatboxviews.get(muc_jid);
 
-            const sent_IQs = _converse.connection.IQ_stanzas;
-            const stanza = await u.waitUntil(() => sent_IQs.filter(iq => iq.querySelector(`iq[type="set"] query[xmlns="${Strophe.NS.MAM}"]`)).pop());
+            const sent_IQs = _converse.api.connection.get().IQ_stanzas;
+            const stanza = await u.waitUntil(() => sent_IQs.filter((iq) => sizzle(`query[xmlns="${Strophe.NS.MAM}"]`, iq).length).pop());
             const queryid = stanza.querySelector('query').getAttribute('queryid');
 
             const first_id = u.getUniqueId();
-            const tombstone = u.toStanza(`
-                <message id="${u.getUniqueId()}" to="${_converse.jid}" from="${muc_jid}">
-                    <result xmlns="urn:xmpp:mam:2" queryid="${queryid}" id="stanza-id">
+            const tombstone = stx`
+                <message id="${u.getUniqueId()}" to="${_converse.jid}" from="${muc_jid}" xmlns="jabber:client">
+                    <result xmlns="urn:xmpp:mam:2" queryid="${queryid}" id="${first_id}">
                         <forwarded xmlns="urn:xmpp:forward:0">
                             <delay xmlns="urn:xmpp:delay" stamp="2019-09-20T23:08:25Z"/>
                             <message type="groupchat" from="${muc_jid}/eve" to="${_converse.bare_jid}" id="message-id-1">
@@ -967,13 +964,17 @@ describe("Message Retractions", function () {
             `);
             _converse.connection._dataRecv(mock.createRequest(retraction));
 
-            const iq_result = $iq({'type': 'result', 'id': stanza.getAttribute('id')})
-                .c('fin', {'xmlns': 'urn:xmpp:mam:2'})
-                    .c('set',  {'xmlns': 'http://jabber.org/protocol/rsm'})
-                        .c('first', {'index': '0'}).t(first_id).up()
-                        .c('last').t(last_id).up()
-                        .c('count').t('2');
-            _converse.connection._dataRecv(mock.createRequest(iq_result));
+            const iq_result = stx`
+                <iq type="result" id="${stanza.getAttribute('id')}" xmlns="jabber:client">
+                    <fin xmlns="urn:xmpp:mam:2" complete="true">
+                        <set xmlns="http://jabber.org/protocol/rsm">
+                            <first index="0">${first_id}</first>
+                            <last>${last_id}</last>
+                            <count>2</count>
+                        </set>
+                    </fin>
+                </iq>`;
+            _converse.api.connection.get()._dataRecv(mock.createRequest(iq_result));
 
             await u.waitUntil(() => view.model.messages.length === 1);
             let message = view.model.messages.at(0);
@@ -1004,14 +1005,14 @@ describe("Message Retractions", function () {
             await mock.openAndEnterChatRoom(_converse, muc_jid, 'romeo', features);
             const view = _converse.chatboxviews.get(muc_jid);
 
-            const sent_IQs = _converse.connection.IQ_stanzas;
-            const stanza = await u.waitUntil(() => sent_IQs.filter(iq => iq.querySelector(`iq[type="set"] query[xmlns="${Strophe.NS.MAM}"]`)).pop());
+            const sent_IQs = _converse.api.connection.get().IQ_stanzas;
+            const stanza = await u.waitUntil(() => sent_IQs.filter((iq) => sizzle(`query[xmlns="${Strophe.NS.MAM}"]`, iq).length).pop());
             const queryid = stanza.querySelector('query').getAttribute('queryid');
 
             const first_id = u.getUniqueId();
-            const tombstone = u.toStanza(`
-                <message id="${u.getUniqueId()}" to="${_converse.jid}" from="${muc_jid}">
-                    <result xmlns="urn:xmpp:mam:2" queryid="${queryid}" id="stanza-id">
+            const tombstone = stx`
+                <message id="${u.getUniqueId()}" to="${_converse.jid}" from="${muc_jid}" xmlns="jabber:client">
+                    <result xmlns="urn:xmpp:mam:2" queryid="${queryid}" id="${first_id}">
                         <forwarded xmlns="urn:xmpp:forward:0">
                             <delay xmlns="urn:xmpp:delay" stamp="2019-09-20T23:08:25Z"/>
                             <message type="groupchat" from="${muc_jid}/eve" to="${_converse.bare_jid}" id="message-id-1">
@@ -1034,12 +1035,10 @@ describe("Message Retractions", function () {
                         <forwarded xmlns="urn:xmpp:forward:0">
                             <delay xmlns="urn:xmpp:delay" stamp="2019-09-20T23:08:25Z"/>
                             <message type="groupchat" from="${muc_jid}" to="${_converse.bare_jid}" id="retract-message-1">
-                                <apply-to id="stanza-id" xmlns="urn:xmpp:fasten:0">
-                                    <moderated by="${muc_jid}/bob" xmlns='urn:xmpp:message-moderate:0'>
-                                        <retract xmlns="urn:xmpp:message-retract:0"/>
-                                        <reason>This message contains inappropriate content</reason>
-                                    </moderated>
-                                </apply-to>
+                                <retract id="${first_id}" xmlns='urn:xmpp:message-retract:1'>
+                                    <moderated by='room@muc.example.com/macbeth' xmlns='urn:xmpp:message-moderate:1'/>
+                                    <reason>This message contains inappropriate content</reason>
+                                </retract>
                             </message>
                         </forwarded>
                     </result>
@@ -1047,13 +1046,17 @@ describe("Message Retractions", function () {
             `);
             _converse.connection._dataRecv(mock.createRequest(retraction));
 
-            const iq_result = $iq({'type': 'result', 'id': stanza.getAttribute('id')})
-                .c('fin', {'xmlns': 'urn:xmpp:mam:2'})
-                    .c('set',  {'xmlns': 'http://jabber.org/protocol/rsm'})
-                        .c('first', {'index': '0'}).t(first_id).up()
-                        .c('last').t(last_id).up()
-                        .c('count').t('2');
-            _converse.connection._dataRecv(mock.createRequest(iq_result));
+            const iq_result = stx`
+                <iq type="result" id="${stanza.getAttribute('id')}" xmlns="jabber:client">
+                    <fin xmlns="urn:xmpp:mam:2" complete="true">
+                        <set xmlns="http://jabber.org/protocol/rsm">
+                            <first index="0">${first_id}</first>
+                            <last>${last_id}</last>
+                            <count>2</count>
+                        </set>
+                    </fin>
+                </iq>`;
+            _converse.api.connection.get()._dataRecv(mock.createRequest(iq_result));
 
             await u.waitUntil(() => view.model.messages.length);
             expect(view.model.messages.length).toBe(1);

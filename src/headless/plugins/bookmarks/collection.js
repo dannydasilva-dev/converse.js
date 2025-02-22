@@ -67,21 +67,80 @@ const Bookmarks = {
         this.sendBookmarkStanza().catch(iq => this.onBookmarkError(iq, options));
     },
 
-    sendBookmarkStanza () {
-        const stanza = $iq({
-                'type': 'set',
-                'from': _converse.connection.jid,
-            })
-            .c('pubsub', {'xmlns': Strophe.NS.PUBSUB})
-                .c('publish', {'node': Strophe.NS.BOOKMARKS})
-                    .c('item', {'id': 'current'})
-                        .c('storage', {'xmlns': Strophe.NS.BOOKMARKS});
-        this.forEach(model => {
-            stanza.c('conference', {
-                'name': model.get('name'),
-                'autojoin': model.get('autojoin'),
-                'jid': model.get('jid'),
-            }).c('nick').t(model.get('nick')).up().up();
+        let send_stanza = false;
+
+        const existing = this.get(attrs.jid);
+        if (existing) {
+            // Check if any attrs changed
+            const has_changed = Object.keys(attrs).reduce((result, k) => {
+                return result || (attrs[k] ?? '') !== (existing.attributes[k] ?? '');
+            }, false);
+            if (has_changed) {
+                existing.save(attrs);
+                send_stanza = true;
+            }
+        } else if (create) {
+            this.create(attrs);
+            send_stanza = true;
+        }
+        if (send_stanza) {
+            this.sendBookmarkStanza().catch((iq) => this.onBookmarkError(iq, attrs));
+        }
+    }
+
+    /**
+     * @param {'urn:xmpp:bookmarks:1'|'storage:bookmarks'} node
+     * @returns {Stanza|Stanza[]}
+     */
+    getPublishedItems(node) {
+        if (node === Strophe.NS.BOOKMARKS2) {
+            return this.map(
+                /** @param {MUC} model */ (model) => {
+                    const extensions = model.get('extensions') ?? [];
+                    return stx`<item id="${model.get('jid')}">
+                    <conference xmlns="${Strophe.NS.BOOKMARKS2}"
+                                name="${model.get('name')}"
+                                autojoin="${model.get('autojoin')}">
+                            ${model.get('nick') ? stx`<nick>${model.get('nick')}</nick>` : ''}
+                            ${model.get('password') ? stx`<password>${model.get('password')}</password>` : ''}
+                        ${
+                            extensions.length
+                                ? stx`<extensions>${extensions.map((e) => Stanza.fromString(e))}</extensions>`
+                                : ''
+                        }
+                        </conference>
+                    </item>`;
+                }
+            );
+        } else {
+            return stx`<item id="current">
+                <storage xmlns="${Strophe.NS.BOOKMARKS}">
+                ${this.map(
+                    /** @param {MUC} model */ (model) =>
+                        stx`<conference name="${model.get('name')}" autojoin="${model.get('autojoin')}"
+                        jid="${model.get('jid')}">
+                        ${model.get('nick') ? stx`<nick>${model.get('nick')}</nick>` : ''}
+                        ${model.get('password') ? stx`<password>${model.get('password')}</password>` : ''}
+                    </conference>`
+                )}
+                </storage>
+            </item>`;
+        }
+    }
+
+    /**
+     * @returns {Promise<void|Element>}
+     */
+    async sendBookmarkStanza() {
+        const bare_jid = _converse.session.get('bare_jid');
+        const node = (await api.disco.supports(`${Strophe.NS.BOOKMARKS2}#compat`, bare_jid))
+            ? Strophe.NS.BOOKMARKS2
+            : Strophe.NS.BOOKMARKS;
+        return api.pubsub.publish(null, node, this.getPublishedItems(node), {
+            persist_items: true,
+            max_items: 'max',
+            send_last_published_item: 'never',
+            access_model: 'whitelist',
         });
         stanza.up().up().up();
         stanza.c('publish-options')
