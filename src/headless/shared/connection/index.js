@@ -106,7 +106,14 @@ export class Connection extends Strophe.Connection {
             await this.discoverConnectionMethods(domain);
         }
         if (!api.settings.get('bosh_service_url') && !api.settings.get("websocket_url")) {
-            throw new Error("You must supply a value for either the bosh_service_url or websocket_url or both.");
+            // If we don't have a connection URL, we show an input for the user
+            // to manually provide it.
+            api.settings.set('show_connection_url_input', true);
+            (callback || this.onConnectStatusChanged.bind(this))(
+                Strophe.Status.DISCONNECTED,
+                __('Could not automatically determine a connection URL')
+            );
+            return;
         }
         super.connect(jid, password, callback || this.onConnectStatusChanged, BOSH_WAIT);
     }
