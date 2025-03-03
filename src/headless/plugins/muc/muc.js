@@ -297,9 +297,8 @@ const ChatRoomMixin = {
                 this.enableRAI();
             }
         } else {
-            if (conn_status === roomstatus.DISCONNECTED) {
-                this.rejoin();
-            }
+            await this.initialized;
+            if (conn_status === roomstatus.DISCONNECTED) this.rejoin();
             this.clearUnreadMsgCounter();
         }
     },
