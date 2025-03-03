@@ -427,24 +427,42 @@ const ChatRoomMixin = {
         return this.occupants.fetched;
     },
 
+    /**
+     * If a user's affiliation has been changed, a <presence> stanza is sent
+     * out, but if the user is not in a room, a <message> stanza MAY be sent
+     * out. This handler handles such message stanzas. See "Example 176" in
+     * XEP-0045.
+     * @param {Element} stanza
+     * @returns {void}
+     */
     handleAffiliationChangedMessage (stanza) {
+        if (stanza.querySelector('body')) {
+            // If there's a body, we don't treat it as an affiliation change message.
+            return;
+        }
+
         const item = sizzle(`x[xmlns="${Strophe.NS.MUC_USER}"] item`, stanza).pop();
         if (item) {
             const from = stanza.getAttribute('from');
-            const type = stanza.getAttribute('type');
-            const affiliation = item.getAttribute('affiliation');
             const jid = item.getAttribute('jid');
             const data = {
                 from,
-                type,
-                affiliation,
-                'states': [],
-                'show': type == 'unavailable' ? 'offline' : 'online',
-                'role': item.getAttribute('role'),
-                'jid': Strophe.getBareJidFromJid(jid),
-                'resource': Strophe.getResourceFromJid(jid)
+                states: [],
+                jid: Strophe.getBareJidFromJid(jid),
+                resource: Strophe.getResourceFromJid(jid)
             };
-            const occupant = this.occupants.findOccupant({ 'jid': data.jid });
+
+            const affiliation = item.getAttribute('affiliation');
+            if (affiliation) {
+                data.affiliation = affiliation;
+            }
+
+            const role = item.getAttribute('role');
+            if (role) {
+                data.role = role;
+            }
+
+            const occupant = this.occupants.findOccupant({ jid: data.jid });
             if (occupant) {
                 occupant.save(data);
             } else {
@@ -2379,21 +2397,21 @@ const ChatRoomMixin = {
         const current_affiliation = occupant.get('affiliation');
         if (previous_affiliation === 'admin' && _converse.isInfoVisible(converse.AFFILIATION_CHANGES.EXADMIN)) {
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is no longer an admin of this groupchat', occupant.get('nick'))
+                type: 'info',
+                message: __('%1$s is no longer an admin of this groupchat', occupant.get('nick')),
             });
         } else if (previous_affiliation === 'owner' && _converse.isInfoVisible(converse.AFFILIATION_CHANGES.EXOWNER)) {
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is no longer an owner of this groupchat', occupant.get('nick'))
+                type: 'info',
+                message: __('%1$s is no longer an owner of this groupchat', occupant.get('nick')),
             });
         } else if (
             previous_affiliation === 'outcast' &&
             _converse.isInfoVisible(converse.AFFILIATION_CHANGES.EXOUTCAST)
         ) {
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is no longer banned from this groupchat', occupant.get('nick'))
+                type: 'info',
+                message: __('%1$s is no longer banned from this groupchat', occupant.get('nick')),
             });
         }
 
@@ -2403,15 +2421,15 @@ const ChatRoomMixin = {
             _converse.isInfoVisible(converse.AFFILIATION_CHANGES.EXMEMBER)
         ) {
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is no longer a member of this groupchat', occupant.get('nick'))
+                type: 'info',
+                message: __('%1$s is no longer a member of this groupchat', occupant.get('nick')),
             });
         }
 
         if (current_affiliation === 'member' && _converse.isInfoVisible(converse.AFFILIATION_CHANGES.MEMBER)) {
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is now a member of this groupchat', occupant.get('nick'))
+                type: 'info',
+                message: __('%1$s is now a member of this groupchat', occupant.get('nick')),
             });
         } else if (
             (current_affiliation === 'admin' && _converse.isInfoVisible(converse.AFFILIATION_CHANGES.ADMIN)) ||
@@ -2419,8 +2437,8 @@ const ChatRoomMixin = {
         ) {
             // For example: AppleJack is now an (admin|owner) of this groupchat
             this.createMessage({
-                'type': 'info',
-                'message': __('%1$s is now an %2$s of this groupchat', occupant.get('nick'), current_affiliation)
+                type: 'info',
+                message: __('%1$s is now an %2$s of this groupchat', occupant.get('nick'), current_affiliation),
             });
         }
     },
