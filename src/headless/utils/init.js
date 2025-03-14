@@ -371,6 +371,12 @@ async function getLoginCredentialsFromSCRAMKeys () {
 
 export async function attemptNonPreboundSession (credentials, automatic) {
     const { api } = _converse;
+    /**
+     * *Hook* to allow 3rd party plugins to provide their own login credentials.
+     * @event _converse#beforeAttemptNonPreboundSession
+     */
+    const new_creds = await api.hook('beforeAttemptNonPreboundSession', this, { credentials, automatic });
+    if (new_creds) return connect(new_creds);
 
     if (api.settings.get("authentication") === LOGIN) {
         const jid = _converse.session.get('jid');
