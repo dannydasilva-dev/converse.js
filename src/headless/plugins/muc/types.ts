@@ -119,7 +119,7 @@ export type MUCPresenceAttributes = MUCPresenceItemAttributes & {
 
 
 export type OccupantData = {
-    jid?: string;
     nick?: string;
     occupant_id?: string; // The XEP-0421 unique occupant id
+    real_jid?: string;
 };

@@ -1,4 +1,5 @@
 import { Strophe } from 'strophe.js';
+import log from '@converse/log';
 import _converse from '../../shared/_converse.js';
 import api from '../../shared/api/index.js';
 import BaseMessage from '../../shared/message.js';
@@ -86,6 +87,11 @@ class MUCMessage extends BaseMessage {
      */
     setOccupant (occupant) {
         if (!['groupchat', 'chat'].includes(this.get('type')) || this.isEphemeral()) {
+            return;
+        }
+
+        if (!this.occupants) {
+            log.error(`'occupants' attr undefined for message: ${JSON.stringify(this.attributes)}`);
             return;
         }
 

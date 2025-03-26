@@ -136,9 +136,9 @@ class MUCOccupants extends Collection {
             return this.get(data.occupant_id);
         }
 
-        const jid = data.jid && Strophe.getBareJidFromJid(data.jid);
-        return jid && this.findWhere({ jid }) ||
-            data.nick && this.findWhere({ 'nick': data.nick });
+        const real_jid = data.real_jid && Strophe.getBareJidFromJid(data.real_jid);
+        return real_jid && this.findWhere({ real_jid }) ||
+            data.nick && this.findWhere({ nick: data.nick });
     }
 
     /**
@@ -149,7 +149,7 @@ class MUCOccupants extends Collection {
      */
     getOwnOccupant () {
         return this.findOccupant({
-            jid: _converse.session.get('bare_jid'),
+            real_jid: _converse.session.get('bare_jid'),
             occupant_id: this.chatroom.get('occupant_id')
         });
     }

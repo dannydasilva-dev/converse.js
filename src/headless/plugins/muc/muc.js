@@ -469,9 +469,9 @@ class MUC extends ModelWithVCard(ModelWithMessages(ColorAwareModel(ChatBoxBase))
             const from = stanza.getAttribute('from');
             const jid = item.getAttribute('jid');
             const data = {
-                from,
+                jid,
                 states: [],
-                jid: Strophe.getBareJidFromJid(jid),
+                real_jid: Strophe.getBareJidFromJid(jid),
                 resource: Strophe.getResourceFromJid(jid)
             };
 
@@ -485,7 +485,7 @@ class MUC extends ModelWithVCard(ModelWithMessages(ColorAwareModel(ChatBoxBase))
                 data.role = role;
             }
 
-            const occupant = this.occupants.findOccupant({ jid: data.jid });
+            const occupant = this.occupants.findOccupant({ real_jid: data.real_jid });
             if (occupant) {
                 occupant.save(data);
             } else {
